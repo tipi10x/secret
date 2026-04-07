@@ -26,18 +26,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Message not found" }, { status: 404 });
   }
 
-  // ❌ sender không được mark
-  if (message.userId.toString() === userId) {
-    return NextResponse.json({ error: "Sender cannot mark once-viewed" }, { status: 403 });
+  const isSender = message.userId.toString() === userId;
+  const isAdmin = user.isAdmin;
+
+  // ✅ Người gửi hoặc admin: luôn trả về ảnh, không ghi nhận viewed
+  if (isSender || isAdmin) {
+    return NextResponse.json({ success: true, imageUrl: message.imageUrl });
   }
 
-  // ✅ admin xem nhưng KHÔNG ghi viewed
-  if (user.isAdmin) {
-    return NextResponse.json({ success: true });
+  // ❌ Người nhận đã xem trước đó
+  if (message.onceViewedBy?.includes(userId)) {
+    return NextResponse.json({ error: "Bạn đã xem ảnh này rồi" }, { status: 403 });
   }
 
-  // ✅ receiver thật sự
+  // ✅ Người nhận lần đầu: ghi nhận và trả ảnh
   await Message.updateOne({ _id: id }, { $addToSet: { onceViewedBy: userId } });
-
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, imageUrl: message.imageUrl });
 }

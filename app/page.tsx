@@ -1,5 +1,6 @@
 "use client";
 
+import { useHeartbeat } from "@/hooks/useHeartbeat";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import ChatContainer from "@/components/chat/chat-container";
@@ -8,46 +9,43 @@ import { Button } from "@/components/ui/button";
 import { LogOut, MessageCircle, Users, Plus } from "lucide-react";
 import { ConversationList } from "@/components/chat/conversation-list";
 import { UserSearch } from "@/components/chat/user-search";
-import { startTransition } from "react";
 
 export default function HomePage() {
+  useHeartbeat();
   const router = useRouter();
-  // Khởi tạo user từ localStorage ngay lập tức
-  const [user, setUser] = useState<any>(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("chat-user");
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          if (!parsed.isAdmin) return parsed;
-        } catch (e) {}
-      }
-    }
-    return null;
-  });
-
+  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedRoomId, setSelectedRoomId] = useState<string>("");
   const [selectedOtherUser, setSelectedOtherUser] = useState<any>(null);
   const [showSearch, setShowSearch] = useState(false);
 
-  // Effect chỉ để kiểm tra admin và chuyển hướng
+  // Kiểm tra session qua cookie
   useEffect(() => {
-    const stored = localStorage.getItem("chat-user");
-    if (stored) {
+    const fetchUser = async () => {
       try {
-        const parsed = JSON.parse(stored);
-        if (parsed.isAdmin) {
-          router.push("/admin");
-          return;
+        const res = await fetch("/api/me");
+        if (res.ok) {
+          const userData = await res.json();
+          if (!userData.isAdmin) {
+            setUser(userData);
+          } else {
+            router.push("/admin");
+          }
+        } else {
+          setUser(null);
         }
-      } catch (e) {}
-    }
-    setTimeout(() => setLoading(false), 0);
+      } catch (error) {
+        console.error("Failed to fetch user:", error);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUser();
   }, [router]);
 
-  const logout = () => {
-    localStorage.removeItem("chat-user");
+  const logout = async () => {
+    await fetch("/api/logout", { method: "POST" });
     setUser(null);
     router.refresh();
   };
@@ -81,12 +79,12 @@ export default function HomePage() {
             <MessageCircle className="w-10 h-10 text-white" />
           </div>
           <h1 className="text-4xl font-black tracking-tight text-slate-900">Spackie Chat</h1>
-          <p className="text-slate-500 max-w-[280px]">Nhắn tin riêng tư với bạn bè và đội ngũ hỗ trợ.</p>
+          <p className="text-slate-500 max-w-70">Nhắn tin riêng tư với bạn bè và đội ngũ hỗ trợ.</p>
         </div>
         <div className="w-full max-w-md">
           <AuthForm
             onAuth={(u: any) => {
-              localStorage.setItem("chat-user", JSON.stringify(u));
+              // Cookie đã được set bởi server, chỉ cần set state
               if (u.isAdmin) router.push("/admin");
               else setUser(u);
             }}
@@ -99,7 +97,6 @@ export default function HomePage() {
   return (
     <main className="h-screen bg-slate-100 flex flex-col p-0 sm:p-4">
       <div className="flex-1 flex flex-col sm:flex-row gap-4 overflow-hidden">
-        {/* Sidebar */}
         <aside className="w-full sm:w-80 bg-white rounded-2xl shadow-xl border flex flex-col overflow-hidden">
           <div className="p-4 border-b flex justify-between items-center">
             <div className="flex items-center gap-2">
@@ -125,23 +122,15 @@ export default function HomePage() {
             </Button>
             {showSearch && (
               <div className="mt-2">
-                <UserSearch
-                  onStartChat={handleStartChat}
-                  currentUserId={user._id} // ← ĐÃ THÊM
-                />
+                <UserSearch onStartChat={handleStartChat} currentUserId={user._id} />
               </div>
             )}
           </div>
           <div className="flex-1 overflow-auto">
-            <ConversationList
-              userId={user._id}
-              onSelectRoom={handleSelectRoom}
-              selectedRoomId={selectedRoomId} // 👈 thêm dòng này
-            />
+            <ConversationList userId={user._id} onSelectRoom={handleSelectRoom} selectedRoomId={selectedRoomId} />
           </div>
         </aside>
 
-        {/* Chat area */}
         <div className="flex-1 bg-white rounded-2xl shadow-xl border flex flex-col overflow-hidden">
           {!selectedRoomId ? (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-300 gap-3">
@@ -160,7 +149,7 @@ export default function HomePage() {
                 </div>
               </div>
               <div className="flex-1 overflow-hidden bg-slate-50">
-                {selectedRoomId && user && user._id && <ChatContainer user={user} roomId={selectedRoomId} />}{" "}
+                {selectedRoomId && user && user._id && <ChatContainer user={user} roomId={selectedRoomId} />}
               </div>
             </>
           )}

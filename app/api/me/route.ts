@@ -5,8 +5,6 @@ import { cookies } from "next/headers";
 
 export async function GET() {
   await connectDB();
-
-  // Lấy userId từ cookie
   const cookieStore = await cookies();
   const userId = cookieStore.get("auth_session")?.value;
 
@@ -14,14 +12,10 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Kiểm tra admin
-  const currentUser = await User.findById(userId);
-  if (!currentUser || !currentUser.isAdmin) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const user = await User.findById(userId).select("-password");
+  if (!user) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  // Lấy danh sách user (có thể lọc bỏ admin hoặc không)
-  const users = await User.find({}, "-password").sort({ createdAt: -1 });
-
-  return NextResponse.json(users);
+  return NextResponse.json(user);
 }

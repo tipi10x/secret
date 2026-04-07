@@ -20,16 +20,16 @@ export const compressImage = (file: File): Promise<File> => {
         let width = img.width;
         let height = img.height;
 
-        // Giới hạn kích thước tối đa 800px để giảm dung lượng hiệu quả
-        const MAX_SIZE = 800;
+        // ✅ Tăng kích thước tối đa lên 1600px (vẫn đảm bảo nhẹ)
+        const MAX_SIZE = 1600;
         if (width > height) {
           if (width > MAX_SIZE) {
-            height *= MAX_SIZE / width;
+            height = (height * MAX_SIZE) / width;
             width = MAX_SIZE;
           }
         } else {
           if (height > MAX_SIZE) {
-            width *= MAX_SIZE / height;
+            width = (width * MAX_SIZE) / height;
             height = MAX_SIZE;
           }
         }
@@ -39,6 +39,7 @@ export const compressImage = (file: File): Promise<File> => {
         const ctx = canvas.getContext("2d");
         ctx?.drawImage(img, 0, 0, width, height);
 
+        // ✅ Tăng chất lượng lên 85% (cân bằng giữa nét và dung lượng)
         canvas.toBlob(
           (blob) => {
             if (blob) {
@@ -48,7 +49,7 @@ export const compressImage = (file: File): Promise<File> => {
             }
           },
           "image/jpeg",
-          0.7, // Chất lượng 70% – đủ rõ nét, dung lượng giảm mạnh
+          0.85,
         );
       };
     };

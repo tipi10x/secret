@@ -1,27 +1,24 @@
-import { NextRequest, NextResponse } from "next/server";
+// app/api/register/route.ts
+import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/server";
 import User from "@/models/User";
+import bcrypt from "bcryptjs";
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   await connectDB();
-
   const { username, password, confirmPassword } = await req.json();
 
-  if (!username || !password || !confirmPassword)
-    return NextResponse.json({ error: "Thiếu thông tin" }, { status: 400 });
+  if (password !== confirmPassword) {
+    return NextResponse.json({ error: "Mật khẩu không khớp" }, { status: 400 });
+  }
 
-  if (password !== confirmPassword) return NextResponse.json({ error: "Password mismatch" }, { status: 400 });
+  const existingUser = await User.findOne({ username });
+  if (existingUser) {
+    return NextResponse.json({ error: "Tên đăng nhập đã tồn tại" }, { status: 400 });
+  }
 
-  const exist = await User.findOne({ username });
-  if (exist) return NextResponse.json({ error: "User tồn tại" }, { status: 400 });
+  const hashedPassword = await bcrypt.hash(password, 10);
+  const user = await User.create({ username, password: hashedPassword });
 
-  const user = await User.create({
-    username,
-    password,
-    isAdmin: username === "admin",
-  });
-
-  const { password: _, ...safeUser } = user.toObject();
-
-  return NextResponse.json({ user: safeUser }, { status: 201 });
+  return NextResponse.json({ user: { _id: user._id, username: user.username, isAdmin: user.isAdmin } });
 }

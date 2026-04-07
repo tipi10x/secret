@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { getPusherClient } from "@/lib/client";
 import { MessageCircle } from "lucide-react";
 
@@ -15,34 +15,45 @@ export function ConversationList({
 }) {
   const [rooms, setRooms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const isMounted = useRef(true);
 
-  const fetchRooms = async () => {
+  const fetchRooms = useCallback(async () => {
     try {
       const res = await fetch("/api/rooms");
+      if (!res.ok) throw new Error();
       const data = await res.json();
-      setRooms(data);
+      if (isMounted.current) {
+        setRooms(data);
+        setLoading(false);
+      }
     } catch (err) {
       console.error("Failed to fetch rooms", err);
-    } finally {
-      setLoading(false);
+      if (isMounted.current) setLoading(false);
     }
-  };
+  }, []);
 
+  // Fetch lần đầu và khi userId thay đổi
   useEffect(() => {
+    isMounted.current = true;
     fetchRooms();
 
     const pusher = getPusherClient();
     const channel = pusher.subscribe(`user-${userId}`);
-    channel.bind("rooms-updated", () => {
+
+    const handleRoomsUpdate = () => {
       fetchRooms(); // refresh khi có tin nhắn mới
-    });
+    };
+    channel.bind("rooms-updated", handleRoomsUpdate);
+
     return () => {
+      isMounted.current = false;
+      channel.unbind("rooms-updated", handleRoomsUpdate);
       channel.unbind_all();
       pusher.unsubscribe(`user-${userId}`);
     };
-  }, [userId]);
+  }, [userId, fetchRooms]);
 
-  // Tự động chọn room đầu tiên khi có danh sách và chưa có room nào được chọn
+  // Tự động chọn room đầu tiên (chỉ chạy 1 lần khi rooms vừa load xong và chưa có selected)
   useEffect(() => {
     if (!loading && rooms.length > 0 && !selectedRoomId) {
       const firstRoom = rooms[0];

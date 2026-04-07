@@ -6,7 +6,6 @@ import { cookies } from "next/headers";
 export async function POST(req: NextRequest) {
   await connectDB();
   const cookieStore = await cookies();
-  console.log("Cookie auth_session:", cookieStore.get("auth_session")?.value);
 
   const userId = cookieStore.get("auth_session")?.value;
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -25,8 +24,6 @@ export async function POST(req: NextRequest) {
     { roomId, seenBy: { $ne: userId }, userId: { $ne: userId } },
     { $addToSet: { seenBy: userId } },
   );
-
-  console.log(`✅ Seen updated for room ${roomId}: ${result.modifiedCount} messages`);
 
   await pusherServer.trigger(`chat-${roomId}`, "messages-seen", { roomId, userId });
 

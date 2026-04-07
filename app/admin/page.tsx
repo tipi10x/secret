@@ -7,29 +7,62 @@ import AuthForm from "@/components/auth/auth-form";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { LogOut, ShieldCheck, MessageSquare, Loader2, Eye } from "lucide-react";
+import { LogOut, ShieldCheck, MessageSquare, Loader2, Eye, Users, Circle } from "lucide-react";
+import { useHeartbeat } from "@/hooks/useHeartbeat";
+
+function formatLastActive(lastActive: string | Date): string {
+  if (!lastActive) return "Không rõ";
+  const date = new Date(lastActive);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return "Vừa xong";
+  if (diffMins < 60) return `${diffMins} phút trước`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours} giờ trước`;
+  return date.toLocaleDateString("vi-VN");
+}
+
+function isOnline(lastActive: string | Date): boolean {
+  if (!lastActive) return false;
+  const diffMs = new Date().getTime() - new Date(lastActive).getTime();
+  return diffMs < 2 * 60 * 1000;
+}
 
 export default function AdminPage() {
   const router = useRouter();
-
-  const [admin, setAdmin] = useState<any>(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("chat-user");
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          return parsed.isAdmin ? parsed : null;
-        } catch (e) {
-          return null;
-        }
-      }
-    }
-    return null;
-  });
-
+  const [admin, setAdmin] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [rooms, setRooms] = useState<any[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<any>(null);
+  const [users, setUsers] = useState<any[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+
+  useHeartbeat();
+
+  // Kiểm tra session admin
+  useEffect(() => {
+    const fetchAdmin = async () => {
+      try {
+        const res = await fetch("/api/me");
+        if (res.ok) {
+          const userData = await res.json();
+          if (userData.isAdmin) {
+            setAdmin(userData);
+          } else {
+            router.push("/");
+          }
+        } else {
+          router.push("/");
+        }
+      } catch (error) {
+        router.push("/");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAdmin();
+  }, [router]);
 
   const fetchRooms = useCallback(async () => {
     try {
@@ -39,27 +72,31 @@ export default function AdminPage() {
       setRooms(data);
     } catch (error) {
       console.error("Lỗi tải phòng:", error);
-    } finally {
-      setLoading(false);
+    }
+  }, []);
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      const res = await fetch("/api/users");
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setUsers(data);
+    } catch (error) {
+      console.error("Lỗi tải người dùng:", error);
     }
   }, []);
 
   useEffect(() => {
     if (admin) {
       fetchRooms();
-    } else {
-      const stored = localStorage.getItem("chat-user");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (!parsed.isAdmin) router.push("/");
-      }
-      setLoading(false);
+      fetchUsers();
+      const interval = setInterval(fetchUsers, 30000);
+      return () => clearInterval(interval);
     }
-  }, [admin, fetchRooms, router]);
+  }, [admin, fetchRooms, fetchUsers]);
 
-  const logout = () => {
-    localStorage.removeItem("chat-user");
-    setAdmin(null);
+  const logout = async () => {
+    await fetch("/api/logout", { method: "POST" });
     router.push("/");
   };
 
@@ -67,7 +104,7 @@ export default function AdminPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-slate-900" />
-        <p className="text-sm text-slate-500 animate-pulse font-medium">Đang tải danh sách cuộc trò chuyện...</p>
+        <p className="text-sm text-slate-500 animate-pulse font-medium">Đang tải dữ liệu...</p>
       </div>
     );
   }
@@ -86,7 +123,6 @@ export default function AdminPage() {
           <AuthForm
             onAuth={(u: any) => {
               if (u.isAdmin) {
-                localStorage.setItem("chat-user", JSON.stringify(u));
                 setAdmin(u);
               } else {
                 alert("Tài khoản này không có quyền Admin!");
@@ -100,8 +136,7 @@ export default function AdminPage() {
 
   return (
     <main className="flex h-screen bg-slate-100 p-2 sm:p-4 gap-4 overflow-hidden">
-      {/* Sidebar: Danh sách các cuộc trò chuyện */}
-      <aside className="w-80 flex flex-col gap-4 shrink-0 hidden md:flex">
+      <aside className="w-80 flex flex-col gap-4 shrink-0 hidden md:flex overflow-y-auto">
         <Card className="shadow-sm border-none bg-white overflow-hidden rounded-2xl">
           <CardContent className="p-4 flex justify-between items-center">
             <div className="flex items-center gap-3">
@@ -123,14 +158,60 @@ export default function AdminPage() {
           </CardContent>
         </Card>
 
+        <Card className="shadow-sm border-none bg-white rounded-2xl overflow-hidden">
+          <div className="p-3 border-b flex justify-between items-center bg-white">
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-slate-500" />
+              <h2 className="font-bold text-slate-900">Người dùng</h2>
+            </div>
+            <span className="text-[10px] bg-slate-100 px-2 py-1 rounded-full font-black text-slate-500">
+              {users.length}
+            </span>
+          </div>
+          <ScrollArea className="h-64">
+            <div className="p-2 space-y-2">
+              {loadingUsers && (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                </div>
+              )}
+              {!loadingUsers && users.length === 0 && (
+                <div className="py-6 text-center text-slate-300 text-xs">Chưa có người dùng nào</div>
+              )}
+              {users.map((user) => {
+                const online = isOnline(user.lastActive);
+                return (
+                  <div key={user._id} className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50">
+                    <div className="flex items-center gap-2">
+                      <div className="relative">
+                        <div className="w-7 h-7 bg-slate-200 rounded-full flex items-center justify-center text-xs font-bold">
+                          {user.username[0]?.toUpperCase()}
+                        </div>
+                        {online && (
+                          <Circle className="absolute -bottom-0.5 -right-0.5 w-3 h-3 text-green-500 fill-green-500" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-slate-800">{user.username}</p>
+                        <p className="text-[10px] text-slate-400">
+                          {online ? "Đang hoạt động" : formatLastActive(user.lastActive)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+        </Card>
+
         <Card className="flex-1 flex flex-col overflow-hidden shadow-sm border-none bg-white rounded-2xl">
-          <div className="p-4 border-b flex justify-between items-center bg-white sticky top-0 z-10">
-            <h2 className="font-black text-slate-900 tracking-tight">Tất cả cuộc trò chuyện</h2>
+          <div className="p-3 border-b flex justify-between items-center bg-white sticky top-0 z-10">
+            <h2 className="font-bold text-slate-900">Cuộc trò chuyện</h2>
             <span className="text-[10px] bg-slate-100 px-2 py-1 rounded-full font-black text-slate-500">
               {rooms.length} PHÒNG
             </span>
           </div>
-
           <ScrollArea className="flex-1">
             <div className="p-2 space-y-1">
               {rooms.length === 0 ? (
@@ -164,7 +245,6 @@ export default function AdminPage() {
         </Card>
       </aside>
 
-      {/* Chat area - chỉ xem, không gửi tin nhắn */}
       <Card className="flex-1 overflow-hidden shadow-sm border-none bg-white flex flex-col rounded-2xl">
         {selectedRoom ? (
           <>
