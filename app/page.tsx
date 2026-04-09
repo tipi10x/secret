@@ -67,7 +67,7 @@ export default function HomePage() {
   };
 
   return (
-    <main className="h-dvh w-full flex bg-background text-foreground overflow-hidden relative font-sans">
+    <main className="h-full min-h-dvh w-full flex bg-background text-foreground overflow-hidden relative font-sans">
       {/* 1. SIDEBAR - Soft Professional Style */}
       <aside
         className={cn(
@@ -129,11 +129,10 @@ export default function HomePage() {
           </div>
         </div>
       </aside>
-
       {/* 2. MAIN CHAT CONTENT */}
       <section
         className={cn(
-          "flex-1 flex flex-col bg-background transition-all duration-500 min-w-0 relative",
+          "flex-1 min-h-0 flex flex-col bg-background transition-all duration-500 relative", // thêm min-h-0
           isMobile && isSidebarOpen ? "opacity-0" : "opacity-100",
         )}>
         {/* Subtle Background pattern */}
@@ -143,7 +142,8 @@ export default function HomePage() {
         />
 
         {selectedRoomId && targetUser ? (
-          <div className="h-full relative z-10 animate-in fade-in slide-in-from-right-2 duration-500">
+          <div className="flex-1 min-h-0 relative z-10 animate-in fade-in slide-in-from-right-2 duration-500">
+            {" "}
             <ChatContainer
               roomId={selectedRoomId}
               targetUser={targetUser}

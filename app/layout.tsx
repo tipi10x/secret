@@ -1,4 +1,4 @@
-import type { Metadata, Viewport } from "next"; // Thêm Viewport
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "../components/providers/theme-provider";
@@ -18,7 +18,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Spackie System",
   description: "Secure Intelligence Chat System",
-  // Hỗ trợ web app mode trên mobile
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -26,13 +25,12 @@ export const metadata: Metadata = {
   },
 };
 
-// Tối ưu hóa viewport cho thiết bị di động
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  viewportFit: "cover", // Quan trọng để xử lý tai thỏ/bottom bar di động
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -40,21 +38,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="vi" suppressHydrationWarning className="h-full">
       <body
         className={`${geistSans.variable} ${geistMono.variable} 
-        min-h-screen bg-background text-foreground antialiased 
+        h-full min-h-dvh bg-background text-foreground antialiased 
         selection:bg-primary/30 selection:text-primary 
-        overflow-x-hidden`} // Ngăn chặn scroll ngang ngoài ý muốn trên mobile
-      >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark" // Thường Spackie sẽ đẹp nhất ở Dark Mode mặc định
-          enableSystem
-          disableTransitionOnChange>
+        overflow-x-hidden`}>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
           <AuthProvider>
-            <main className="relative flex flex-col min-h-screen">{children}</main>
-
-            <Toaster
-              position="top-center" // Mobile nên để top-center để không bị bàn phím che
-            />
+            <main className="relative flex flex-col h-full">{children}</main>
+            <Toaster position="top-center" />
           </AuthProvider>
         </ThemeProvider>
       </body>
